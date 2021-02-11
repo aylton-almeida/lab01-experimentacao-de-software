@@ -35,6 +35,10 @@ if response.status_code != 200 or 'errors' in response.text:
 
 data: dict = json.loads(response.text)
 
-data_frame = data['data']['search']['nodes']
+data_frame = pd.DataFrame(data['data']['search']['nodes'])
+
+with open('data.csv', 'w') as file:
+    data_frame.to_csv(file)
+
 
 pprint(data_frame)
