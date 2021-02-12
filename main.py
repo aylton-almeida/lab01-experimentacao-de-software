@@ -14,31 +14,61 @@ load_dotenv()
 url = os.getenv('API_URL')
 token = 'Bearer {}'.format(os.getenv('AUTH_TOKEN'))
 
-# Api query
-query = """query example {
-  search(query: "stars:>100", type:REPOSITORY, first:100) {
-    nodes {
-      ... on Repository {
-        name
-      }
-    }
-  }
-}"""
 
-# Make request
-response: Response = requests.post(url, json={'query': query}, headers={
-    'Authorization': token
-})
+def getQuery(cursor: str = None):
+    ###
+    # build api query
+    # ###
+    return """query example {
+       search(query: "stars:>100", type:REPOSITORY, first:100, after: %s) {
+          edges {
+            cursor
+            node {
+              ... on Repository {
+                name
+                createdAt
+              }
+            }
+          }
+       }
+    }""" % (cursor or 'null')
 
-if response.status_code != 200 or 'errors' in response.text:
-    raise Exception('There was an error while trying to make the request')
 
-data: dict = json.loads(response.text)
+repo_list: list = []
 
-data_frame = pd.DataFrame(data['data']['search']['nodes'])
+print('Fetching repos...')
+
+# Make 1000 requests
+for i in range(10):
+
+    current_cursor = '"{}"'.format(repo_list[-1]['cursor']) if len(
+        repo_list) > 0 else None
+
+    print('{} out of 1000. Current cursor: {}'.format(
+        (i + 1) * 100, current_cursor))
+
+    query = getQuery(current_cursor)
+
+    response: Response = requests.post(url, json={'query': query}, headers={
+        'Authorization': token
+    })
+
+    if response.status_code != 200 or 'errors' in response.text:
+        print(response.text)
+        raise Exception('There was an error while trying to make the request')
+
+    json_data: dict = json.loads(response.text)
+
+    repo_data = json_data['data']['search']['edges']
+
+    repo_list = [*repo_list, *repo_data]
+
+print('All repos were fetch\n')
+print('Saving file...')
+
+data_frame = pd.DataFrame(repo_list)
 
 with open('data.csv', 'w') as file:
     data_frame.to_csv(file)
 
-
-pprint(data_frame)
+print('File saved')
