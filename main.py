@@ -20,19 +20,35 @@ def getQuery(cursor: str = None):
     ###
     # build api query
     # ###
-    return """query example {
-       search(query: "stars:>100", type:REPOSITORY, first:100, after: %s) {
-          edges {
+    return """
+    query example{
+      search(type: REPOSITORY, first: 100, query: "stars:>100", after: %s) {
+        edges {
             cursor
             node {
               ... on Repository {
                 name
                 createdAt
+                primaryLanguage {
+                  name
+                }
+                issues {
+                  totalCount
+                }
+                pullRequests {
+                  totalCount
+                }
+                pushedAt
+                updatedAt
+                releases {
+                  totalCount
+                }
               }
             }
-          }
-       }
-    }""" % (cursor or 'null')
+        }
+      }
+    }
+    """ % (cursor or 'null')
 
 
 repo_list: list = []
@@ -74,7 +90,17 @@ bar.finish()
 print('All repos were fetch')
 print('Saving file...')
 
-data_frame = pd.DataFrame(repo_list)
+
+data_frame = pd.DataFrame(list(map(lambda item: {
+    "name": item.get('node').get('name'),
+    "created_at": item.get('node').get("createdAt"),
+    "primary_language": item.get('node').get('primaryLanguage').get('name') if item.get('node').get('primaryLanguage') else None,
+    "issues": item.get('node').get('issues').get('totalCount') if item.get('node').get('issues') else None,
+    "pull_requests": item.get('node').get('pullRequests').get('totalCount') if item.get('node').get('pullRequests') else None,
+    "pushed_at": item.get('node').get('pushedAt'),
+    "updated_at": item.get('node').get('updatedAt'),
+    "releases": item.get('node').get('releases').get('totalCount') if item.get('node').get('releases') else None
+}, repo_list)))
 
 with open('data.csv', 'w') as file:
     data_frame.to_csv(file)
