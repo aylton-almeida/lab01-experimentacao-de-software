@@ -15,6 +15,7 @@ load_dotenv()
 url = os.getenv('API_URL')
 token = 'Bearer {}'.format(os.getenv('AUTH_TOKEN'))
 
+total_repos = 1000
 repos_per_request = 3
 
 
@@ -24,23 +25,24 @@ def getQuery(cursor: str = None):
     # ###
     return """
     query example{
-      search(type: REPOSITORY, first: %(repos)i, query: "stars:>100", after: %(after)s) {
+      search(type: REPOSITORY, first: %(repos)i, query: "stars:>101", after: %(after)s) {
         edges {
             cursor
             node {
               ... on Repository {
                 nameWithOwner
+                url
                 createdAt
                 primaryLanguage {
                   name
                 }
-                closedIssues: issues(states: CLOSED) {
+                closedIssues: issues(first: 1, states: CLOSED) {
                   totalCount
                 }
                 totalIssues: issues {
                   totalCount
                 }
-                pullRequests(states: MERGED) {
+                pullRequests(first: 1, states: MERGED) {
                   totalCount
                 }
                 pushedAt
@@ -66,30 +68,39 @@ widgets = [
     progressbar.Bar(marker='\x1b[32m#\x1b[39m'),
 ]
 bar = progressbar.ProgressBar(
-    widgets=widgets, max_value=int(100 / repos_per_request), min_value=0).start()
+    widgets=widgets, max_value=int(total_repos / repos_per_request + 1), min_value=0).start()
 
-for i in range(int(100 / repos_per_request)):
+i = 0
+while i < int(total_repos / repos_per_request + 1):
     # Make 1000 requests
 
-    current_cursor = '"{}"'.format(repo_list[-1]['cursor']) if len(
-        repo_list) > 0 else None
+    try:
+        current_cursor = '"{}"'.format(repo_list[-1]['cursor']) if len(
+            repo_list) > 0 else None
 
-    query = getQuery(current_cursor)
+        query = getQuery(current_cursor)
 
-    response: Response = requests.post(url, json={'query': query}, headers={
-        'Authorization': token
-    })
+        response: Response = requests.post(url, json={'query': query}, headers={
+            'Authorization': token
+        })
 
-    if response.status_code != 200 or 'errors' in response.text:
-        print(response.text)
-        raise Exception('There was an error while trying to make the request')
+        if response.status_code != 200 or 'errors' in response.text:
+            print(response.text)
+            raise Exception(
+                'There was an error while trying to make the request')
 
-    json_data: dict = json.loads(response.text)
+        json_data: dict = json.loads(response.text)
 
-    repo_data = json_data['data']['search']['edges']
+        repo_data = json_data['data']['search']['edges']
 
-    repo_list = [*repo_list, *repo_data]
-    bar.update(i + 1)
+        repo_list = [*repo_list, *repo_data]
+
+        i += 1
+        bar.update(i)
+
+    except:
+        print('Timeout error')
+
 
 bar.finish()
 
@@ -98,16 +109,18 @@ print('Saving file...')
 
 
 data_frame = pd.DataFrame(list(map(lambda item: {
-    "name": item.get('node').get('name'),
+    "nameWithOwner": item.get('node').get('nameWithOwner'),
+    "url": item.get('node').get('url'),
     "created_at": item.get('node').get("createdAt"),
     "primary_language": item.get('node').get('primaryLanguage').get('name') if item.get('node').get('primaryLanguage') else None,
-    "closedIssues": item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('issues') else None,
-    "totalIssues": item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('issues') else None,
+    "closedIssues": item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('closedIssues') else None,
+    "totalIssues": item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('totalIssues') else None,
     "pull_requests": item.get('node').get('pullRequests').get('totalCount') if item.get('node').get('pullRequests') else None,
     "pushed_at": item.get('node').get('pushedAt'),
     "updated_at": item.get('node').get('updatedAt'),
     "releases": item.get('node').get('releases').get('totalCount') if item.get('node').get('releases') else None
 }, repo_list)))
+
 
 with open('data.csv', 'w') as file:
     data_frame.to_csv(file)
