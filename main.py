@@ -15,6 +15,8 @@ load_dotenv()
 url = os.getenv('API_URL')
 token = 'Bearer {}'.format(os.getenv('AUTH_TOKEN'))
 
+repos_per_request = 3
+
 
 def getQuery(cursor: str = None):
     ###
@@ -22,20 +24,23 @@ def getQuery(cursor: str = None):
     # ###
     return """
     query example{
-      search(type: REPOSITORY, first: 100, query: "stars:>100", after: %s) {
+      search(type: REPOSITORY, first: %(repos)i, query: "stars:>100", after: %(after)s) {
         edges {
             cursor
             node {
               ... on Repository {
-                name
+                nameWithOwner
                 createdAt
                 primaryLanguage {
                   name
                 }
-                issues {
+                closedIssues: issues(states: CLOSED) {
                   totalCount
                 }
-                pullRequests {
+                totalIssues: issues {
+                  totalCount
+                }
+                pullRequests(states: MERGED) {
                   totalCount
                 }
                 pushedAt
@@ -48,10 +53,11 @@ def getQuery(cursor: str = None):
         }
       }
     }
-    """ % (cursor or 'null')
+    """ % {'repos': repos_per_request, "after": (cursor or 'null')}
 
 
 repo_list: list = []
+
 
 # extremely necessary progress bar for better user experience
 widgets = [
@@ -60,9 +66,9 @@ widgets = [
     progressbar.Bar(marker='\x1b[32m#\x1b[39m'),
 ]
 bar = progressbar.ProgressBar(
-    widgets=widgets, max_value=10, min_value=0).start()
+    widgets=widgets, max_value=int(100 / repos_per_request), min_value=0).start()
 
-for i in range(10):
+for i in range(int(100 / repos_per_request)):
     # Make 1000 requests
 
     current_cursor = '"{}"'.format(repo_list[-1]['cursor']) if len(
@@ -95,7 +101,8 @@ data_frame = pd.DataFrame(list(map(lambda item: {
     "name": item.get('node').get('name'),
     "created_at": item.get('node').get("createdAt"),
     "primary_language": item.get('node').get('primaryLanguage').get('name') if item.get('node').get('primaryLanguage') else None,
-    "issues": item.get('node').get('issues').get('totalCount') if item.get('node').get('issues') else None,
+    "closedIssues": item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('issues') else None,
+    "totalIssues": item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('issues') else None,
     "pull_requests": item.get('node').get('pullRequests').get('totalCount') if item.get('node').get('pullRequests') else None,
     "pushed_at": item.get('node').get('pushedAt'),
     "updated_at": item.get('node').get('updatedAt'),
