@@ -20,35 +20,37 @@ def getQuery(cursor: str = None):
     ###
     # build api query
     # ###
-    return """
+  return """
     query example{
-      search(type: REPOSITORY, first: 100, query: "stars:>100", after: %s) {
-        edges {
-            cursor
-            node {
-              ... on Repository {
-                name
-                createdAt
-                primaryLanguage {
-                  name
-                }
-                issues {
-                  totalCount
-                }
-                pullRequests {
-                  totalCount
-                }
-                pushedAt
-                updatedAt
-                releases {
-                  totalCount
-                }
-              }
-            }
+     search(type: REPOSITORY, first: 1, query: "stars:>100") {
+       nodes {
+      ... on Repository {
+        nameWithOwner
+        url
+        createdAt
+        primaryLanguage {
+          name
+        }
+        closedIssues: issues(states: CLOSED) {
+          totalCount
+        }
+        totalIssues: issues {
+          totalCount
+        }
+        pullRequests(states: MERGED) {
+          totalCount
+        }
+        pushedAt
+        updatedAt
+        releases {
+          totalCount
         }
       }
     }
+  }
+}
     """ % (cursor or 'null')
+
 
 
 repo_list: list = []
