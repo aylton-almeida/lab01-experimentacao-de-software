@@ -7,6 +7,9 @@ import progressbar
 from pprint import pprint
 from dotenv import load_dotenv
 from requests.models import Response
+from datetime import timedelta
+from datetime import date
+
 
 # Load env file
 load_dotenv()
@@ -112,12 +115,15 @@ data_frame = pd.DataFrame(list(map(lambda item: {
     "nameWithOwner": item.get('node').get('nameWithOwner'),
     "url": item.get('node').get('url'),
     "created_at": item.get('node').get("createdAt"),
+    "repo_age": datetime.now() - timedelta(datetime(item.get('node').get("createdAt"))),
     "primary_language": item.get('node').get('primaryLanguage').get('name') if item.get('node').get('primaryLanguage') else None,
     "closedIssues": item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('closedIssues') else None,
     "totalIssues": item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('totalIssues') else None,
+    "Issues_ratio":  item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('closedIssues') /  item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('totalIssues')
     "pull_requests": item.get('node').get('pullRequests').get('totalCount') if item.get('node').get('pullRequests') else None,
     "pushed_at": item.get('node').get('pushedAt'),
     "updated_at": item.get('node').get('updatedAt'),
+    "update_frequency": datetime.now() - timedelta(datetime(item.get('node').get('updatedAt'))),
     "releases": item.get('node').get('releases').get('totalCount') if item.get('node').get('releases') else None
 }, repo_list)))
 
