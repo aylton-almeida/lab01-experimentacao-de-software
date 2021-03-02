@@ -7,8 +7,7 @@ import progressbar
 from pprint import pprint
 from dotenv import load_dotenv
 from requests.models import Response
-from datetime import timedelta
-from datetime import date
+from datetime import datetime, timezone
 
 
 # Load env file
@@ -102,7 +101,7 @@ while i < int(total_repos / repos_per_request + 1):
         bar.update(i)
 
     except:
-        print('Timeout error')
+        pass
 
 
 bar.finish()
@@ -111,21 +110,36 @@ print('All repos were fetch')
 print('Saving file...')
 
 
-data_frame = pd.DataFrame(list(map(lambda item: {
-    "nameWithOwner": item.get('node').get('nameWithOwner'),
-    "url": item.get('node').get('url'),
-    "created_at": item.get('node').get("createdAt"),
-    "repo_age": datetime.now() - timedelta(datetime(item.get('node').get("createdAt"))),
-    "primary_language": item.get('node').get('primaryLanguage').get('name') if item.get('node').get('primaryLanguage') else None,
-    "closedIssues": item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('closedIssues') else None,
-    "totalIssues": item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('totalIssues') else None,
-    "Issues_ratio":  item.get('node').get('closedIssues').get('totalCount') if item.get('node').get('closedIssues') /  item.get('node').get('totalIssues').get('totalCount') if item.get('node').get('totalIssues')
-    "pull_requests": item.get('node').get('pullRequests').get('totalCount') if item.get('node').get('pullRequests') else None,
-    "pushed_at": item.get('node').get('pushedAt'),
-    "updated_at": item.get('node').get('updatedAt'),
-    "update_frequency": datetime.now() - timedelta(datetime(item.get('node').get('updatedAt'))),
-    "releases": item.get('node').get('releases').get('totalCount') if item.get('node').get('releases') else None
-}, repo_list)))
+def format_dict(item: dict):
+    node = item.get('node')
+
+    issues_ratio = 0
+
+    if node.get('closedIssues') \
+            and node.get('closedIssues').get('totalCount') \
+            and node.get('totalIssues') \
+            and node.get('totalIssues').get('totalCount'):
+        issues_ratio = node.get('closedIssues').get(
+            'totalCount') / node.get('totalIssues').get('totalCount')
+
+    return {
+        "nameWithOwner": node.get('nameWithOwner'),
+        "url": node.get('url'),
+        "created_at": node.get("createdAt"),
+        "age": (datetime.now(timezone.utc) - datetime.fromisoformat(node.get('createdAt').replace('Z', '+00:00'))).days,
+        "primary_language": node.get('primaryLanguage').get('name') if node.get('primaryLanguage') else None,
+        "closedIssues": node.get('closedIssues').get('totalCount') if node.get('closedIssues') else None,
+        "totalIssues": node.get('totalIssues').get('totalCount') if node.get('totalIssues') else None,
+        "issuesRatio": issues_ratio,
+        "pull_requests": node.get('pullRequests').get('totalCount') if node.get('pullRequests') else None,
+        "pushed_at": node.get('pushedAt'),
+        "updated_at": node.get('updatedAt'),
+        "update_frequency": (datetime.now(timezone.utc) - datetime.fromisoformat(node.get('updatedAt').replace('Z', '+00:00'))),
+        "releases": node.get('releases').get('totalCount') if node.get('releases') else None
+    }
+
+
+data_frame = pd.DataFrame([format_dict(item) for item in repo_list])
 
 
 with open('data.csv', 'w') as file:
